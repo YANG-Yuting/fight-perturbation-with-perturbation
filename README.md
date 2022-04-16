@@ -22,13 +22,13 @@ We implement two attack algorithms (TextFooler and SemPSO) on four defense metho
 
 Parameters:
 
-- -task: the task to be attacked (imdb/mr)
-- -target_model: the target model to be attacked (wordLSTM/bert)
-- -target_model_path: the path of target model to be attacked
-- -data_path: the path of data
-- -output_dir: the path for output adv examples
-- -sym: use the symmetric candidate
-- **-kind: choose defense method**
+- --task: the task to be attacked (imdb/mr)
+- --target_model: the target model to be attacked (wordLSTM/bert)
+- --target_model_path: the path of target model to be attacked
+- --data_path: the path of data
+- --output_dir: the path for output adv examples
+- --sym: use the symmetric candidate
+- **--kind: choose defense method**
     - org: attack original model
     - Enhance: attack model enhanced by FPP
     - SAFER: attack model enhanced by SAFER
@@ -60,12 +60,12 @@ python AD_dpso_sem.py --task mr --target_model bert --target_model_path /pub/dat
 
 Parameters:
 
-- -target_model: the target model to be attacked (wordLSTM/bert)
-- -target_model_path: the path of target model to be attacked
-- -data_path: the path of data
-- -output_dir: the path for output adv examples
-- -sym: use the symmetric candidate
-- **-kind: choose defense method.**
+- --target_model: the target model to be attacked (wordLSTM/bert)
+- --target_model_path: the path of target model to be attacked
+- --data_path: the path of data
+- --output_dir: the path for output adv examples
+- --sym: use the symmetric candidate
+- **--kind: choose defense method.**
     - org: attack original model
     - Enhance: attack model enhanced by FPP
     - SAFER: attack model enhanced by SAFER
