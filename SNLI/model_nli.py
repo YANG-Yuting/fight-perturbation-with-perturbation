@@ -16,8 +16,8 @@ class Model(nn.Module):
     def __init__(self,args):
         super(Model, self).__init__()
 
-        self.word_vec = pickle.load(open('/pub/data/huangpei/TextFooler/SNLI/dataset/word_vec.pkl', 'rb'))
-        self.word_vec[42391]=pickle.load(open('/pub/data/huangpei/TextFooler/SNLI/dataset/glove_unk.pkl','rb'))
+        self.word_vec = pickle.load(open(args.data_path + 'snli/word_vec.pkl', 'rb'))
+        self.word_vec[42391]=pickle.load(open(args.data_path + 'snli/glove_unk.pkl','rb'))
         #print(self.word_vec[42391])
         config_nli_model = {
             'n_words': len(self.word_vec),
@@ -36,8 +36,6 @@ class Model(nn.Module):
         }
         self.nli_net = NLINet(config_nli_model)
         self.nli_net.load_state_dict(torch.load(args.target_model_path, map_location='cuda:0'))
-        # self.nli_net.encoder.load_state_dict(
-        #     torch.load(os.path.join('/pub/data/huangpei/TextFooler/SNLI/savedir/', 'model_nli.pickle' + '.encoder.pkl'), map_location='cuda:0'))
         self.word_emb_dim = 300
         self.max_seq_len = args.max_seq_length  # 64
         self.args = args
@@ -94,9 +92,6 @@ class Model(nn.Module):
             s1 = [s.tolist() if not isinstance(s, list) else s for s in s1]
             s2 = [s.tolist() if not isinstance(s, list) else s for s in s2]
 
-            # tiz 20210827
-            # 若<s>不在句子中，加入；str转id
-            # 对采样后的文本遍历转换，费时，想办法优化（1000*1000条）
             new_s1, new_s2 = [], []
             for a, b in zip(s1, s2):
                 a = [self.args.full_dict[w] for w in a]
@@ -120,17 +115,13 @@ class Model(nn.Module):
         return torch.cat(new_pred, dim=0)
 
     def text_pred_adv(self, ori_s2, text):
-        self.nli_net.eval()  # tiz adds
+        self.nli_net.eval()
         s1 = text[0]
         s2 = text[1]
 
         with torch.no_grad():
             s1 = [s.tolist() if not isinstance(s, list) else s for s in s1]
             s2 = [s.tolist() if not isinstance(s, list) else s for s in s2]
-
-            # tiz 20210827
-            # 若<s>不在句子中，加入；str转id
-            # 对采样后的文本遍历转换，费时，想办法优化（1000*1000条）
             new_s1, new_s2 = [], []
             for a, b in zip(s1, s2):
                 a = [self.args.full_dict[w] for w in a]
@@ -153,7 +144,7 @@ class Model(nn.Module):
 
         return torch.cat(new_pred, dim=0)
 
-    def text_pred_Enhance(self, orig_s2, text, sample_num=256): # text是str
+    def text_pred_Enhance(self, orig_s2, text, sample_num=256):
         self.nli_net.eval()
         s1 = text[0]
         s2 = text[1]
@@ -161,14 +152,14 @@ class Model(nn.Module):
             perturbed_s2 = perturb_texts(self.args, orig_s2, s2, self.args.tf_vocabulary, change_ratio=0.2)
             Samples_s2 = gen_sample_multiTexts(self.args, orig_s2, perturbed_s2, sample_num, change_ratio=0.25)
 
-            s1s=[s for s in s1 for i in range(sample_num)] #每个lable复制sample_size 次
+            s1s=[s for s in s1 for i in range(sample_num)]
 
             Sample_probs = self.text_pred_org(orig_s2, (s1s,Samples_s2))
             lable_mum=Sample_probs.shape[-1]
             Sample_probs = Sample_probs.view(len(s2),sample_num, lable_mum)
             probs_boost = []
             for l in range(lable_mum):
-                num = torch.sum(torch.eq(torch.argmax(Sample_probs, dim=2), l),dim=1)  # 获得预测值的比例作为对应标签的概率
+                num = torch.sum(torch.eq(torch.argmax(Sample_probs, dim=2), l),dim=1)
                 prob = num.float() / float(sample_num)
                 probs_boost.append(prob.view(len(s2),1))
             probs_boost_all=torch.cat(probs_boost,dim=1)
@@ -181,13 +172,13 @@ class Model(nn.Module):
         s2 = text[1]
         with torch.no_grad():
             Samples_s2 = gen_sample_multiTexts(self.args, orig_s2, s2, sample_num, change_ratio=1)
-            s1s = [s for s in s1 for i in range(sample_num)]  # 每个lable复制sample_size 次
+            s1s = [s for s in s1 for i in range(sample_num)]
             Sample_probs = self.text_pred_org(orig_s2,(s1s, Samples_s2))
             lable_mum=Sample_probs.size()[-1]
             Sample_probs=Sample_probs.view(len(s2),sample_num,lable_mum)
             probs_boost = []
             for l in range(lable_mum):
-                num = torch.sum(torch.eq(torch.argmax(Sample_probs, dim=2), l), dim=1)  # 获得预测值的比例作为对应标签的概率
+                num = torch.sum(torch.eq(torch.argmax(Sample_probs, dim=2), l), dim=1)
                 prob = num.float() / float(sample_num)
                 probs_boost.append(prob.view(len(s2), 1))
             probs_boost_all = torch.cat(probs_boost, dim=1)

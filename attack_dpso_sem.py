@@ -2,8 +2,13 @@ from __future__ import division
 import numpy as np
 
 import copy
-from gen_pos_tag import pos_tagger
+from config import args
+from nltk.tag import StanfordPOSTagger
+jar = args.data_path + 'stanford-postagger-full-2020-11-17/stanford-postagger.jar'
+model = args.data_path + 'stanford-postagger-full-2020-11-17/models/english-left3words-distsim.tagger'
+pos_tagger = StanfordPOSTagger(model, jar, encoding='utf8')
 import time
+
 class PSOAttack(object):
     def __init__(self, args, model, candidate,
                  dataset,
@@ -33,13 +38,14 @@ class PSOAttack(object):
 
         new_x_list_str = [[self.inv_dict[wid] for wid in x] for x in new_x_list]
         x_cur_str = [self.inv_dict[wid] for wid in x_cur]
+        x_orig_str = [self.inv_dict[wid] for wid in x_orig]
         # print(len(new_x_list_str))
 
         #new_x_list_str1=new_x_list_str.append(x_cur_str)
         new_x_list_str.append(x_cur_str)
         # print(len(new_x_list_str))
         #print(len(new_x_list_str1))
-        new_x_preds1 = self.model(None, new_x_list_str).cpu().numpy()  # array, [5,2]
+        new_x_preds1 = self.model([x_orig_str] * len(new_x_list_str), new_x_list_str).cpu().numpy()  # array, [5,2]
 
 
         #x_scores=new_x_preds[:, target]
@@ -158,25 +164,22 @@ class PSOAttack(object):
         neigbhours_list = [] # id
         x_orig_str = [self.args.inv_full_dict[word].replace('\x85', '') for word in x_orig]
         if ' '.join(x_orig_str) in self.args.candidate_bags.keys():  # seen data (from train or test dataset)
-            # 获得候选集
             candidate_bag = self.args.candidate_bags[' '.join(x_orig_str)]
             for j in range(len(x_orig_str)):
                 neghs = candidate_bag[x_orig_str[j]].copy()
-                neghs.remove(x_orig_str[j])  # 同义词中删掉自己
+                neghs.remove(x_orig_str[j])
                 neigbhours_list.append(neghs)
         else:
             pos_tag = pos_tagger.tag(x_orig_str)
-            # str转id（同义词集是用id存的），有不存在于词汇表的，保留原str，之后分类需要
             text_ids = []
             for word_str in x_orig_str:
                 if word_str in self.args.full_dict.keys():
                     text_ids.append(self.args.full_dict[word_str])  # id
                 else:
                     text_ids.append(word_str)  # str
-            # 对于所有扰动位置
             for j in range(len(x_orig_str)):
                 word = text_ids[j]
-                pos = pos_tag[j][1]  # 当前词语词性
+                pos = pos_tag[j][1]
                 if isinstance(word, int) and pos in self.args.pos_list:
                     if pos.startswith('JJ'):
                         pos = 'adj'
@@ -186,10 +189,10 @@ class PSOAttack(object):
                         pos = 'adv'
                     elif pos.startswith('VB'):
                         pos = 'verb'
-                    neigbhours_list.append(self.args.word_candidate[word][pos].copy())  # 候选集
+                    neigbhours_list.append(self.args.word_candidate[word][pos].copy())
                 else:
                     neigbhours_list.append([])
-        neigbhours_list = [[self.args.full_dict[i] for i in position] for position in neigbhours_list]  # str转为id
+        neigbhours_list = [[self.args.full_dict[i] for i in position] for position in neigbhours_list]
 
         neighbours_len = [len(x) for x in neigbhours_list]
         # id
@@ -203,7 +206,7 @@ class PSOAttack(object):
         w_select_probs = w_select_probs/np.sum(w_select_probs)
 
         # x_orig_str = [self.inv_dict[wid] for wid in x_orig]
-        orig_score = self.model(None, [x_orig_str])[0][target].item()
+        orig_score = self.model([x_orig_str], [x_orig_str])[0][target].item()
         # print('orig', orig_score)
 
         if np.sum(neighbours_len) == 0:
@@ -266,7 +269,7 @@ class PSOAttack(object):
             for a in pop:
                 a_str = [self.inv_dict[wid] for wid in a]
 
-                pt = self.model(None, [a_str])[0].cpu().numpy()
+                pt = self.model([x_orig_str], [a_str])[0].cpu().numpy()
                 pop_scores.append(pt[target])
                 pop_scores_all.append(pt)
             pop_ranks = np.argsort(pop_scores)

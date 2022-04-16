@@ -37,12 +37,12 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--task", type=str, default='snli', help="task name: mr/imdb")
 # parser.add_argument("--nclasses",type=int,default=3,help="How many classes for classification.")
 parser.add_argument("--target_model",type=str,default='bdlstm',help="Target models for text classification: fasttext, charcnn, word level lstm ""For NLI: InferSent, ESIM, bert-base-uncased")
-parser.add_argument("--target_model_path",type=str,default='/pub/data/huangpei/TextFooler/SNLI/lstm',help="Target models for text classification: fasttext, charcnn, word level lstm ""For NLI: InferSent, ESIM, bert-base-uncased")
-parser.add_argument("--word_embeddings_path",type=str,default='/pub/data/huangpei/TextFooler/glove.6B/glove.6B.200d.txt',help="path to the word embeddings for the target model")
-parser.add_argument("--counter_fitting_embeddings_path", type=str, default='/pub/data/huangpei/TextFooler/data/counter-fitted-vectors.txt', help="path to the counter-fitting embeddings we used to find synonyms")
-parser.add_argument("--counter_fitting_cos_sim_path",type=str,default='/pub/data/huangpei/TextFooler/data/cos_sim_counter_fitting.npy',help="pre-compute the cosine similarity scores based on the counter-fitting embeddings")
+parser.add_argument("--target_model_path",type=str,help="Target models for text classification: fasttext, charcnn, word level lstm ""For NLI: InferSent, ESIM, bert-base-uncased")
+parser.add_argument("--word_embeddings_path",type=str,help="path to the word embeddings for the target model")
+parser.add_argument("--counter_fitting_embeddings_path", type=str, help="path to the counter-fitting embeddings we used to find synonyms")
+# parser.add_argument("--counter_fitting_cos_sim_path",type=str,help="pre-compute the cosine similarity scores based on the counter-fitting embeddings")
 parser.add_argument("--USE_cache_path",type=str,default='',help="Path to the USE encoder cache.")
-parser.add_argument("--output_dir",type=str,default='/pub/data/huangpei/TextFooler/adv_results',help="The output directory where the attack results will be written.")
+parser.add_argument("--output_dir",type=str,help="The output directory where the attack results will be written.")
 
 ## Model hyperparameters
 parser.add_argument("--sim_score_window",default=15,type=int,help="Text length or token number to compute the semantic similarity score")
@@ -52,7 +52,7 @@ parser.add_argument("--synonym_num",default=50,type=int,help="Number of synonyms
 parser.add_argument("--batch_size",default=128,type=int,help="Batch size to get prediction")
 parser.add_argument("--perturb_ratio",default=0., type=float,help="Whether use random perturbation for ablation study")
 parser.add_argument("--max_seq_length",default=100,type=int,help="max sequence length for BERT target model")
-parser.add_argument("--save_path", type=str, default='/pub/data/huangpei/TextFooler/SNLI/savedir_adv', help='path to store trained model')
+parser.add_argument("--save_path", type=str, help='path to store trained model')
 
 parser.add_argument("--sample_num", type=int, default=256)
 parser.add_argument("--change_ratio", type=float, default=1.0, help='the percentage of changed words in a text while sampling')
@@ -63,40 +63,45 @@ parser.add_argument("--train_set", action='store_true', help='whether attack tra
 parser.add_argument("--attack_robot", action='store_true', help='whether attack the enhanced model')
 parser.add_argument("--kind", type=str, default='org', help='the model to be attacked')
 parser.add_argument("--mode", type=str, default='eval', help='train, eval')
+parser.add_argument("--data_path", type=str, help="where to load dataset, parent dir")
+
 args = parser.parse_args()
 
-with open('/pub/data/huangpei/TextFooler/SNLI/dataset/nli_tokenizer.pkl', 'rb') as fh:
+args.word_embeddings_path = args.data_path + 'glove.6B/glove.6B.200d.txt'
+args.counter_fitting_embeddings_path = args.data_path + 'counter-fitted-vectors.txt'
+# args.counter_fitting_cos_sim_path = args.data_path + 'cos_sim_counter_fitting.npy'
+
+
+with open(args.data_path +'snli/nli_tokenizer.pkl', 'rb') as fh:
     args.tokenizer = pickle.load(fh)
 if args.sym:
-    with open('/pub/data/huangpei/TextFooler/SNLI/dataset/word_candidates_sense_top5_sym.pkl','rb') as fp:
+    with open(args.data_path +'snli/word_candidates_sense_top5_sym.pkl','rb') as fp:
         args.word_candidate=pickle.load(fp)
 else:
-    with open('/pub/data/huangpei/TextFooler/SNLI/dataset/word_candidates_sense_top5.pkl','rb') as fp:
+    with open(args.data_path +'snli/word_candidates_sense_top5.pkl','rb') as fp:
         args.word_candidate=pickle.load(fp)
-with open('/pub/data/huangpei/TextFooler/SNLI/dataset/all_seqs.pkl', 'rb') as fh:
+with open(args.data_path +'snli/all_seqs.pkl', 'rb') as fh:
     args.train, _, args.test = pickle.load(fh)
 
 if args.train_set:
-    with open('/pub/data/huangpei/TextFooler/SNLI/dataset/pos_tags.pkl','rb') as fp:
+    with open(args.data_path +'snli/pos_tags.pkl','rb') as fp:
         args.pos_tags = pickle.load(fp)
 else:
-    with open('/pub/data/huangpei/TextFooler/SNLI/dataset/pos_tags_test.pkl', 'rb') as fp:
+    with open(args.data_path +'snli/pos_tags_test.pkl', 'rb') as fp:
         args.pos_tags = pickle.load(fp)
 
 if args.sym:
-    with open('/pub/data/huangpei/TextFooler/SNLI/dataset/candidates_test_sym.pkl', 'rb') as fp:
+    with open(args.data_path +'snli/candidates_test_sym.pkl', 'rb') as fp:
         candidate_bags_test = pickle.load(fp)
-    with open('/pub/data/huangpei/TextFooler/SNLI/dataset/candidates_train_sym.pkl', 'rb') as fp:
+    with open(args.data_path +'snli/candidates_train_sym.pkl', 'rb') as fp:
         candidate_bags_train = pickle.load(fp)
 else:
-    with open('/pub/data/huangpei/TextFooler/SNLI/dataset/candidates_test.pkl', 'rb') as fp:
+    with open(args.data_path +'snli/candidates_test.pkl', 'rb') as fp:
         candidate_bags_test = pickle.load(fp)
-    with open('/pub/data/huangpei/TextFooler/SNLI/dataset/candidates_train.pkl', 'rb') as fp:
-        candidate_bags_train = pickle.load(fp)
 
 args.candidate_bags = {**candidate_bags_train, **candidate_bags_test}
 
-with open('/pub/data/huangpei/TextFooler/SNLI/dataset/tf_vocabulary.pkl', 'rb') as fp:
+with open(args.data_path +'snli/tf_vocabulary.pkl', 'rb') as fp:
     args.tf_vocabulary = pickle.load(fp)
 np.random.seed(3333)
 args.full_dict = {w: i for (w, i) in args.tokenizer.word_index.items()}
@@ -104,7 +109,6 @@ args.inv_full_dict = {i: w for (w, i) in args.full_dict.items()}
 # tiz add oov
 args.full_dict['<oov>'] = 42391
 args.inv_full_dict[42391] = '<oov>'
-# tiz 20210827 过滤掉空的数据（7459: ['<s>','</s2>']，创建数据时把词汇表之外的删了，所以会出现空的数据。所幸只有一条），按batch预测的时候会报错，而且空数据也没有意义
 # test set
 null_idx = [i for i in range(len(args.test['s2'])) if len(args.test['s2'][i])<=2]
 args.test['s1'] = np.delete(args.test['s1'], null_idx)

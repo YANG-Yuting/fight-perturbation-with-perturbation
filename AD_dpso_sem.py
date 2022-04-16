@@ -26,6 +26,7 @@ def main():
         texts = args.datasets.test_seqs2
         labels = args.datasets.test_y
         data = list(zip(texts, labels))
+        data = data[:200]
     print("Data import finished!")
     print('Attaked data size', len(data))
 
@@ -48,32 +49,30 @@ def main():
     pop_size = 60
     adversary = PSOAttack(args, predictor, args.word_candidate, args.datasets, max_iters=20, pop_size=pop_size)
 
-    # 不合法数据
-    wrong_clas_id = []  # 保存错误预测的数据id
-    wrong_clas = 0  # 记录错误预测数据个数
+    wrong_clas_id = []
+    wrong_clas = 0
+    attack_list = []
 
-    attack_list = []  # 记录待攻击样本id（整个数据集-错误分类的-长度不合法的）
+    failed_list = []
+    failed_time = []
+    failed_input_list = []
 
-    failed_list = []  # 记录攻击失败数据id
-    failed_time = []  # 记录攻击失败时间
-    failed_input_list = []  # 记录攻击失败的数据及其实际标签
-
-    input_list = []  # 记录成功攻击的输入数据
-    output_list = []  # 记录成功攻击的对抗样本
-    success = []  # 记录成功攻击的数据id
-    change_list = []  # 记录成功攻击的替换比例
-    true_label_list = []  # 记录成功攻击的数据真实label
-    success_count = 0  # # 记录成功攻击数据个数
-    num_change_list = []  # 记录成功攻击的替换词个数
-    success_time = []  # 记录成功攻击的时间
+    input_list = []
+    output_list = []
+    success = []
+    change_list = []
+    true_label_list = []
+    success_count = 0
+    num_change_list = []
+    success_time = []
 
     predict_true = 0
 
     print('Start attacking!')
 
     for idx, (text_ids, true_label) in enumerate(data):
-        if predict_true > 200: # 攻击前200个正确预测的
-            break
+        # if predict_true > 200:
+        #     break
         print('text id: ', idx)
 
         text_str = [args.inv_full_dict[word] for word in text_ids]
@@ -108,7 +107,6 @@ def main():
         modify_ratio = float(num_changed) / float(len(text_ids))
         if modify_ratio > 0.25:
             continue
-        # 对抗样本再输入模型判断
         new_text = [args.inv_full_dict[ii] for ii in new_text]
         probs = predictor([text_str], [new_text]).squeeze()
         pred_label = torch.argmax(probs)
@@ -127,7 +125,7 @@ def main():
         success_time.append(adv_time)  #
         print('Num of data: %d, num of predict true: %d, num of successfule attacl:%d' % (idx+1, predict_true, success_count))
 
-    print(predict_true, success_count, float(predict_true)/float(idx+1), float(success_count)/float(predict_true), 1.0-(success_count+wrong_clas)/float(idx+1))
+    print(float(success_count)/float(predict_true), 1.0-(success_count+wrong_clas)/float(idx+1))
 
     w_dir = args.output_dir + '/sempso'
     if args.train_set:

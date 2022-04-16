@@ -7,14 +7,13 @@ from tqdm import tqdm
 import dataloader
 from sklearn.model_selection import train_test_split
 import os
-
 from nltk.tag import StanfordPOSTagger
-jar = '/pub/data/huangpei/stanford-postagger-full-2020-11-17/stanford-postagger.jar'
-model = '/pub/data/huangpei/stanford-postagger-full-2020-11-17/models/english-left3words-distsim.tagger'
-pos_tagger = StanfordPOSTagger(model, jar, encoding='utf8')
-
 
 if __name__ == '__main__':
+    jar = 'dataset/stanford-postagger-full-2020-11-17/stanford-postagger.jar'
+    model = 'dataset/stanford-postagger-full-2020-11-17/models/english-left3words-distsim.tagger'
+    pos_tagger = StanfordPOSTagger(model, jar, encoding='utf8')
+
     task = 'imdb'
     train = True
 
@@ -22,7 +21,7 @@ if __name__ == '__main__':
     data_path = '/pub/data/huangpei/TextFooler/data/adversary_training_corpora/'
     if task == 'mr':
         # train_x, train_y = dataloader.read_corpus('data/adversary_training_corpora/mr/train.txt', clean=False,FAKE=False,shuffle=False)
-        # test_x, test_y = dataloader.read_corpus('data/adversary_training_corpora/mr/test.txt', clean=False, FAKE=False,shuffle=False)  # 为了观察，暂时不shuffle
+        # test_x, test_y = dataloader.read_corpus('data/adversary_training_corpora/mr/test.txt', clean=False, FAKE=False,shuffle=False)
 
         with open('/pub/data/huangpei/TextFooler/data/adversary_training_corpora/mr/dataset_20000.pkl', 'rb') as f:
             datasets = pickle.load(f)
@@ -45,7 +44,7 @@ if __name__ == '__main__':
         test_y = datasets.test_y
     elif task == 'fake':
         train_x, train_y = dataloader.read_corpus(data_path + '{}/train_tok.csv'.format(task), clean=False, FAKE=True, shuffle=True)
-        train_x, test_x, train_y, test_y = train_test_split(train_x, train_y, test_size=0.1, random_state=1)  # tiz: 从训练集中获得测试集试试 --> 正常了
+        train_x, test_x, train_y, test_y = train_test_split(train_x, train_y, test_size=0.1, random_state=1)
 
     if train:
         out_file = data_path + task + '/pos_tags.pkl'

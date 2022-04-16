@@ -20,8 +20,12 @@ import datetime
 
 import dataloader
 import modules
-from gen_pos_tag import pos_tagger
 from config import args
+
+from nltk.tag import StanfordPOSTagger
+jar = args.data_path + 'stanford-postagger-full-2020-11-17/stanford-postagger.jar'
+model = args.data_path + 'stanford-postagger-full-2020-11-17/models/english-left3words-distsim.tagger'
+pos_tagger = StanfordPOSTagger(model, jar, encoding='utf8')
 
 np.random.seed(8848)   #8848
 
@@ -35,7 +39,7 @@ class Model(nn.Module):
         self.emb_layer = modules.EmbeddingLayer(embs = dataloader.load_embedding(embedding), fix_emb=True)
         self.word2id = self.emb_layer.word2id
         self.max_seq_length = max_seq_length
-        self.tf_vocabulary=pickle.load(open('/pub/data/huangpei/TextFooler/data/adversary_training_corpora/%s/tf_vocabulary.pkl' % args.task, "rb"))
+        self.tf_vocabulary=pickle.load(open(args.data_path + '%s/tf_vocabulary.pkl' % args.task, "rb"))
         if cnn:
             self.encoder = modules.CNN_Text(self.emb_layer.n_d, widths = [3,4,5],filters=hidden_size)
             d_out = 3*hidden_size
@@ -44,7 +48,6 @@ class Model(nn.Module):
             d_out = hidden_size
         self.out = nn.Linear(d_out, nclasses)
 
-    #input: tensor, id 统一长度（通常为一个batch，batch_size*max_len）
     def forward(self, input):
         if self.cnn:
             input = input.t()
@@ -96,9 +99,7 @@ class Model(nn.Module):
 
         return torch.cat(outs, dim=0)
 
-    # tiz: 加强的分类器
-    # text：[[]]有多条数据，是word
-    def text_pred_Enhance(self, orig_texts, text, sample_num=256, batch_size=128): # text是str
+    def text_pred_Enhance(self, orig_texts, text, sample_num=256, batch_size=128):
 
         probs_boost_all = []
         perturbed_texts = perturb_texts(self.args, orig_texts, text, self.tf_vocabulary, change_ratio=0.25)
@@ -109,7 +110,7 @@ class Model(nn.Module):
         Sample_probs=Sample_probs.view(len(text),sample_num,lable_mum)
         probs_boost = []
         for l in range(lable_mum):
-            num = torch.sum(torch.eq(torch.argmax(Sample_probs, dim=2), l),dim=1)  # 获得预测值的比例作为对应标签的概率
+            num = torch.sum(torch.eq(torch.argmax(Sample_probs, dim=2), l),dim=1)
             prob = num.float() / float(sample_num)
             probs_boost.append(prob.view(len(text),1))
 
@@ -126,7 +127,7 @@ class Model(nn.Module):
         Sample_probs=Sample_probs.view(len(text),sample_num,lable_mum)
         probs_boost = []
         for l in range(lable_mum):
-            num = torch.sum(torch.eq(torch.argmax(Sample_probs, dim=2), l), dim=1)  # 获得预测值的比例作为对应标签的概率
+            num = torch.sum(torch.eq(torch.argmax(Sample_probs, dim=2), l), dim=1)
             prob = num.float() / float(sample_num)
             probs_boost.append(prob.view(len(text), 1))
         probs_boost_all = torch.cat(probs_boost, dim=1)
@@ -184,21 +185,19 @@ def perturb_texts(args, orig_texts=None, texts=None, tf_vocabulary=None, change_
     if orig_texts is None:
         orig_texts=[None for i in range(len(texts))]
     for orig_text,text_str in zip(orig_texts,texts):
-        # 获得候选集
+        # get candidates
         text_str = [word for word in text_str if word != '\x85']
         text_str = [word.replace('\x85', '') for word in text_str]
-        if ' '.join(text_str) in args.candidate_bags.keys(): # 若该文本见过（train and test）
+        if ' '.join(text_str) in args.candidate_bags.keys():
             candidate_bag = args.candidate_bags[' '.join(text_str)]
         else:
-            # 针对攻击代码
-            if orig_text:  # 若orig_text不为空（仅在攻击中会赋值，此时所有的texts对应一个orig text）
+            if orig_text:
                 orig_text = [word for word in orig_text if word != '\x85']
                 orig_text = [word.replace('\x85', '') for word in orig_text]
-                pos_tag = args.pos_tags[' '.join(orig_text)]  # 注意这里是对测试集做！
+                pos_tag = args.pos_tags[' '.join(orig_text)]  # for test set
             else:
-                pos_tag = pos_tagger.tag(text_str)  # 词性标注，耗时0.45s
+                pos_tag = pos_tagger.tag(text_str)  # 0.45s
 
-            # str转id（同义词集是用id存的），有不存在于词汇表的，保留原str，之后分类需要
             text_ids = []
             for word_str in text_str:
                 if word_str in args.full_dict.keys():
@@ -206,11 +205,10 @@ def perturb_texts(args, orig_texts=None, texts=None, tf_vocabulary=None, change_
                 else:
                     text_ids.append(word_str)  # str
 
-            # 获得候选集
             candidate_bag = {}
-            for j in range(len(text_ids)):  # 对于每个位置
+            for j in range(len(text_ids)):
                 word = text_ids[j]
-                pos = pos_tag[j][1]  # 当前词语词性
+                pos = pos_tag[j][1]
                 neigbhours = [word]
                 if isinstance(word, int) and pos in args.pos_list and word < len(args.word_candidate):
                     if pos.startswith('JJ'):
@@ -221,13 +219,12 @@ def perturb_texts(args, orig_texts=None, texts=None, tf_vocabulary=None, change_
                         pos = 'adv'
                     elif pos.startswith('VB'):
                         pos = 'verb'
-                    neigbhours.extend(args.word_candidate[word][pos])  # 候选集
-                candidate_bag[text_str[j]] = [args.inv_full_dict[i] if isinstance(i, int) else i for i in neigbhours]  # id转为str
+                    neigbhours.extend(args.word_candidate[word][pos])
+                candidate_bag[text_str[j]] = [args.inv_full_dict[i] if isinstance(i, int) else i for i in neigbhours]
 
         replace_text = text_str.copy()
-        for i in range(len(text_str) - 1):  # 对于每个位置
+        for i in range(len(text_str) - 1):
             candi = candidate_bag[text_str[i]]
-            # 若候选集只有自己
             if len(candi) == 1:
                 continue
             else:
@@ -235,7 +232,7 @@ def perturb_texts(args, orig_texts=None, texts=None, tf_vocabulary=None, change_
                 sum_freq1=0.0
                 sum_freq2 = 0.0
                 max_freq = 0.0
-                best_replace = replace_text[i] # 默认最好的是自己
+                best_replace = replace_text[i]
                 Ori_freq2 = 0.0
                 Ori_freq1 = 0.0
                 freq_list2 = []
@@ -291,17 +288,14 @@ def perturb_FGWS(args, orig_texts=None, texts=None, tf_vocabulary=None):
     if orig_texts is None:
         orig_texts=[None for i in range(len(texts))]
     for orig_text,text_str in zip(orig_texts,texts):
-        # 获得候选集
-        if ' '.join(text_str) in args.candidate_bags.keys(): # 若该文本见过（train and test）
+        if ' '.join(text_str) in args.candidate_bags.keys(): # if seen（train and test）
             candidate_bag = args.candidate_bags[' '.join(text_str)]
         else:
-            # 针对攻击代码
-            if orig_text:  # 若orig_text不为空（仅在攻击中会赋值，此时所有的texts对应一个orig text）
-                pos_tag = args.pos_tags[' '.join(orig_text)]  # 注意这里是对测试集做！
+            if orig_text:
+                pos_tag = args.pos_tags[' '.join(orig_text)]
             else:
-                pos_tag = pos_tagger.tag(text_str)  # 词性标注，耗时0.45s
+                pos_tag = pos_tagger.tag(text_str)
 
-            # str转id（同义词集是用id存的），有不存在于词汇表的，保留原str，之后分类需要
             text_ids = []
             for word_str in text_str:
                 if word_str in args.full_dict.keys():
@@ -309,11 +303,10 @@ def perturb_FGWS(args, orig_texts=None, texts=None, tf_vocabulary=None):
                 else:
                     text_ids.append(word_str)  # str
 
-            # 获得候选集
             candidate_bag = {}
-            for j in range(len(text_ids)):  # 对于每个位置
+            for j in range(len(text_ids)):
                 word = text_ids[j]
-                pos = pos_tag[j][1]  # 当前词语词性
+                pos = pos_tag[j][1]
                 neigbhours = [word]
                 if isinstance(word, int) and pos in args.pos_list and word < len(args.word_candidate):
                     if pos.startswith('JJ'):
@@ -324,11 +317,11 @@ def perturb_FGWS(args, orig_texts=None, texts=None, tf_vocabulary=None):
                         pos = 'adv'
                     elif pos.startswith('VB'):
                         pos = 'verb'
-                    neigbhours.extend(args.word_candidate[word][pos])  # 候选集
-                candidate_bag[text_str[j]] = [args.inv_full_dict[i] if isinstance(i, int) else i for i in neigbhours]  # id转为str
+                    neigbhours.extend(args.word_candidate[word][pos])
+                candidate_bag[text_str[j]] = [args.inv_full_dict[i] if isinstance(i, int) else i for i in neigbhours]
 
         replace_text = text_str.copy()
-        for i in range(len(text_str) - 1):  # 对于每个位置
+        for i in range(len(text_str) - 1):
             candi = candidate_bag[text_str[i]]
             # 若候选集只有自己
             if len(candi) == 1:
@@ -345,17 +338,16 @@ def perturb_FGWS(args, orig_texts=None, texts=None, tf_vocabulary=None):
         select_sents.append(replace_text)
     return select_sents
 
-"""对于训练集/测试集中出现的文本，进行采样"""
+"""sample"""
 def gen_sample_multiTexts(args, orig_texts=None, texts=None, sample_num=64, change_ratio = 1):
     Finded_num=0
-    all_sample_texts = []  # 返回值。list of list of str，包含输入每个数据的所有周围样本
+    all_sample_texts = []  # return: list of list of str, including all samples for each input
     if orig_texts is None:
         orig_texts=[None for i in range(len(texts))]
     for orig_text,text_str in zip(orig_texts,texts):
         text_str = [word for word in text_str if word != '\x85']
         text_str = [word.replace('\x85', '') for word in text_str]
         if ' '.join(text_str) in args.candidate_bags.keys():  # seen data (from train or test dataset)
-            # 获得候选集
             Finded_num+=1
             candidate_bag = args.candidate_bags[' '.join(text_str)]
 
@@ -369,16 +361,15 @@ def gen_sample_multiTexts(args, orig_texts=None, texts=None, sample_num=64, chan
             sample_texts = np.array(sample_texts).T.tolist()
 
         else:  # unseen data
-            # 针对攻击代码
-            if orig_text: # 若orig_text不为空（仅在攻击中会赋值，此时所有的texts对应一个orig text）
+            if orig_text:
                 orig_text = [word for word in orig_text if word != '\x85']
                 orig_text = [word.replace('\x85', '') for word in orig_text]
                 pos_tag = args.pos_tags[' '.join(orig_text)]
             else:
-                pos_tag = pos_tagger.tag(text_str)  # 词性标注，耗时0.45s
+                print('pos tagging for unseen data')
+                pos_tag = pos_tagger.tag(text_str)
 
             # start_time = time.clock()
-            # str转id（同义词集是用id存的），有不存在于词汇表的，保留原str，之后分类需要
             text_ids = []
             for word_str in text_str:
                 if word_str in args.full_dict.keys():
@@ -386,11 +377,10 @@ def gen_sample_multiTexts(args, orig_texts=None, texts=None, sample_num=64, chan
                 else:
                     text_ids.append(word_str)  # str
 
-            # 获得候选集
             candidate_bag = {}
-            for j in range(len(text_ids)):  # 对于每个位置
+            for j in range(len(text_ids)):
                 word = text_ids[j]
-                pos = pos_tag[j][1]  # 当前词语词性
+                pos = pos_tag[j][1]
                 neigbhours = [word]
                 if isinstance(word, int) and pos in args.pos_list and word < len(args.word_candidate):
                     if pos.startswith('JJ'):
@@ -401,9 +391,8 @@ def gen_sample_multiTexts(args, orig_texts=None, texts=None, sample_num=64, chan
                         pos = 'adv'
                     elif pos.startswith('VB'):
                         pos = 'verb'
-                    neigbhours.extend(args.word_candidate[word][pos])  # 候选集
-                candidate_bag[text_str[j]] = [args.inv_full_dict[i] if isinstance(i, int) else i for i in neigbhours] # id转为str
-                # 可能一句话中一个词语出现多次
+                    neigbhours.extend(args.word_candidate[word][pos])
+                candidate_bag[text_str[j]] = [args.inv_full_dict[i] if isinstance(i, int) else i for i in neigbhours]
 
             sample_texts = []
             for ii in range(len(text_str)):
@@ -422,15 +411,15 @@ def gen_sample_multiTexts(args, orig_texts=None, texts=None, sample_num=64, chan
     return all_sample_texts
 
 
-"""读取对抗样本"""
+"""read adversarial examples"""
 def read_adv_example():
-    with open('/pub/data/huangpei/TextFooler/adv_results/train_set/org/tf_%s_%s_success.pkl' % (args.task, args.target_model), 'rb') as fp:
+    with open('adv_results/train_set/org/tf_%s_%s_success.pkl' % (args.task, args.target_model), 'rb') as fp:
         input_list, true_label_list, output_list, success, change_list, num_change_list, success_time = pickle.load(fp)
         output_list = [adv.split(' ') for adv in output_list]
         return output_list, true_label_list
 
 
-def eval_model(model, input_x, input_y): # input_x:未划分batch的二维list，str
+def eval_model(model, input_x, input_y):
     model.eval()
     print('Evaluate Model:{:s}'.format(args.kind))
     # N = len(valid_x)
@@ -441,7 +430,7 @@ def eval_model(model, input_x, input_y): # input_x:未划分batch的二维list�
     predictor = model.text_pred()
     with torch.no_grad():
         for step in range(0, data_size, batch_size):
-            input_x1 = input_x[step:min(step + batch_size, data_size)]  # 取一个batch
+            input_x1 = input_x[step:min(step + batch_size, data_size)]
             input_y1 = input_y[step:min(step + batch_size, data_size)]
             output = predictor(input_x1, input_x1)
             pred = torch.argmax(output, dim=1)
@@ -457,7 +446,7 @@ def train_model(args, epoch, model, optimizer,train_x, train_y, test_x, test_y, 
     criterion = nn.CrossEntropyLoss()
 
     cnt = 0
-    for x, y in zip(train_x, train_y): # 对于每个batch
+    for x, y in zip(train_x, train_y):
         niter += 1
         cnt += 1
         model.zero_grad()
@@ -480,7 +469,6 @@ def train_model(args, epoch, model, optimizer,train_x, train_y, test_x, test_y, 
     return best_test
 
 
-
 # HP adds: train_x is str
 def train_model1(args, epoch, model, optimizer,train_x, train_y, test_x, test_y, best_test, save_path):
     print('train:{:d}'.format(len(train_x)))
@@ -494,21 +482,19 @@ def train_model1(args, epoch, model, optimizer,train_x, train_y, test_x, test_y,
 
     for step in range(0,len(train_x),batch_size):
         #print('step={:d}'.format(step//batch_size))
-        train_x1=train_x[step:min(step+batch_size,len(train_x))] #取一个batch
+        train_x1=train_x[step:min(step+batch_size,len(train_x))]
         train_y1=train_y[step:min(step+batch_size,len(train_x))]
 
         niter += 1
         cnt += 1
-        #print('gen_sample_multiTexts')
         start_time = time.clock()
         Samples_x=gen_sample_multiTexts(args, None, train_x1, sample_size)   #sample_size for each point
         use_time = (time.clock() - start_time)
-        # print("gen_sample_multiTexts time used:", use_time)
-        Samples_y=[l for l in train_y1 for i in range(sample_size)] #每个lable复制sample_size 次
+        Samples_y=[l for l in train_y1 for i in range(sample_size)]
         #print('text_pred_org')
         Sample_probs=model.text_pred_org(None, Samples_x)
         S_result=torch.eq(torch.argmax(Sample_probs, dim=1), torch.Tensor(Samples_y).cuda()).view(len(train_y1),sample_size)
-        R_score=torch.sum(S_result,dim=1).view(-1)/float(sample_size) #每个训练点的鲁棒打分
+        R_score=torch.sum(S_result,dim=1).view(-1)/float(sample_size)
         #print(R_score)
 
 
@@ -535,13 +521,11 @@ def train_model1(args, epoch, model, optimizer,train_x, train_y, test_x, test_y,
             model.zero_grad()
             # if torch.cuda.device_count() > 1:
             #     print("Let's use", torch.cuda.device_count(), "GPUs!")
-            #     # 就这一行
             #     model = nn.DataParallel(model)
             #adv_loss=0
-            #计算对抗样本产生的loss
             adv_x, adv_y = Variable(adv_x), Variable(adv_y)
             output = model(adv_x)
-            output = torch.reshape(output, (-1, args.nclasses))  # 当输入只有一个元素时，output只有一维。需要将其拉成两维
+            output = torch.reshape(output, (-1, args.nclasses))
 
             adv_loss =criterion(output, adv_y)
         else:
@@ -566,16 +550,6 @@ def train_model1(args, epoch, model, optimizer,train_x, train_y, test_x, test_y,
         loss.backward()
         optimizer.step()
 
-    # for x, y in zip(train_x, train_y): # 对于每个batch
-    #
-    #
-    #     model.train()
-    #     model.zero_grad()
-    #     x, y = Variable(x), Variable(y)
-    #     output = model(x)
-    #     loss = criterion(output, y)
-    #     loss.backward()
-    #     optimizer.step()
 
     test_acc = eval_model(model, test_x, test_y)
 
@@ -638,12 +612,6 @@ def train_model2(args, epoch, model, optimizer,train_x, train_y, test_x, test_y,
     train_x1, train_y1 = dataloader.create_batches(train_x, train_y, args.max_seq_length, batch_size,
                                                    model.word2id, )
 
-
-    # if torch.cuda.device_count() > 1:
-    #     print("Let's use", torch.cuda.device_count(), "GPUs!")
-        # 就这一行
-    # model = nn.DataParallel(model)
-    # print("Let's use", torch.cuda.device_count(), "GPUs!")
 
     for e in range(epoch):
         sum_loss=0
@@ -781,12 +749,11 @@ def main(args):
         checkpoint = torch.load(args.target_model_path, map_location='cuda:0')
         model.load_state_dict(checkpoint)
 
-    if args.mode == 'eval':  # tiz
+    if args.mode == 'eval':
         print('Eval...')
         # test_x, test_y = dataloader.create_batches(test_x, test_y, args.max_seq_length,args.batch_size, model.word2id, ) # tiz: 512 -->args.max_seq_length
         # test_acc0=eval_model(model, test_x, test_y)
         # print('Base classifier f acc:{:.6f}'.format(test_acc0))
-        # imdb测试集太大，取1000个eval
         test_acc = eval_model(model, test_x, test_y)
         # test_acc = model.eval_model(test_x, test_y)
         print('Test acc: ', test_acc)
@@ -818,12 +785,12 @@ def main(args):
         # best_test = train_model_adv(args, 200, model, optimizer, train_x, train_y,train_adv_x,train_adv_y, test_x, test_y, best_test, args.save_path)
         #==================================
 
-# tiz：将从官方下载的fake数据集中的test.csv和submit合并，获得测试集标签，写入test_tok.csv中
+
 def get_test_label():
-    test = pd.read_csv('data/adversary_training_corpora/fake/test.csv')['text'].tolist()
-    print(pd.read_csv('data/adversary_training_corpora/fake/test.csv').isna().sum())
-    labels = pd.read_csv('data/adversary_training_corpora/fake/submit.csv')['label'].tolist()
-    with open('data/adversary_training_corpora/fake/test_tok.csv','w') as w:
+    test = pd.read_csv(args.data_path + 'fake/test.csv')['text'].tolist()
+    print(pd.read_csv(args.data_path + 'fake/test.csv').isna().sum())
+    labels = pd.read_csv(args.data_path + 'fake/submit.csv')['label'].tolist()
+    with open(args.data_path + 'fake/test_tok.csv','w') as w:
         for i in range(len(test)):
             try:
                 test[i] = test[i].replace('\n','')

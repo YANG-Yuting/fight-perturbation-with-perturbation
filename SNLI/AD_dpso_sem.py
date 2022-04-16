@@ -17,15 +17,16 @@ def main():
     if args.train_set:
     # train set
         s1s,s2s,labels = args.train_s1, args.train_s2, args.train_labels
-        s1s = [[args.full_dict[w] for w in t] for t in s1s] # str转id
+        s1s = [[args.full_dict[w] for w in t] for t in s1s]
         s2s = [[args.full_dict[w] for w in t] for t in s2s]
         data = list(zip(s1s,s2s,labels))
     else:
     # test set
         s1s,s2s,labels = args.test_s1, args.test_s2, args.test_labels
-        s1s = [[args.full_dict[w] for w in t] for t in s1s]  # str转id
+        s1s = [[args.full_dict[w] for w in t] for t in s1s]
         s2s = [[args.full_dict[w] for w in t] for t in s2s]
         data = list(zip(s1s,s2s,labels))
+        data = data[:100]
     print("Data import finished!")
     print('Attaked data size:', len(data))
 
@@ -43,25 +44,22 @@ def main():
 
     adversary = PSOAttack(args, predictor, max_iters=20, pop_size=60)
 
-    # 不合法数据
-    wrong_clas_id = []  # 保存错误预测的数据id
-    wrong_clas = 0  # 记录错误预测数据个数
-    # too_long_id = []  # 保存太长被过滤的数据id
+    wrong_clas_id = []
+    wrong_clas = 0
+    attack_list = []
 
-    attack_list = []  # 记录待攻击样本id（整个数据集-错误分类的-长度不合法的）
+    failed_list = []
+    failed_time = []
+    failed_input_list = []
 
-    failed_list = []  # 记录攻击失败数据id
-    failed_time = []  # 记录攻击失败时间
-    failed_input_list = []  # 记录攻击失败的数据及其实际标签
-
-    input_list = []  # 记录成功攻击的输入数据
-    output_list = []  # 记录成功攻击的对抗样本
-    success = []  # 记录成功攻击的数据id
-    change_list = []  # 记录成功攻击的替换比例
-    true_label_list = []  # 记录成功攻击的数据真实label
-    success_count = 0  # # 记录成功攻击数据个数
-    num_change_list = []  # 记录成功攻击的替换词个数
-    success_time = []  # 记录成功攻击的时间
+    input_list = []
+    output_list = []
+    success = []
+    change_list = []
+    true_label_list = []
+    success_count = 0
+    num_change_list = []
+    success_time = []
 
     orig_failures = 0.
     adv_failures = 0.
@@ -75,7 +73,7 @@ def main():
     print('Start attacking!')
     for idx, (ori_s1, ori_s2, true_label) in enumerate(data):
         print('text id:', idx)
-        ori_s1_str = [args.inv_full_dict[w] for w in ori_s1] # id转str
+        ori_s1_str = [args.inv_full_dict[w] for w in ori_s1]
         ori_s2_str = [args.inv_full_dict[w] for w in ori_s2]
         orig_probs = predictor([ori_s2_str], ([ori_s1_str], [ori_s2_str])).squeeze()
         orig_label = torch.argmax(orig_probs)
@@ -113,7 +111,6 @@ def main():
         modify_ratio = float(num_changed) / float(len(ori_s2))
         if modify_ratio > 0.25:
             continue
-        # 对抗样本再输入模型判断
         new_text_str = [args.inv_full_dict[w] for w in new_text]
         probs = predictor([ori_s2_str], ([ori_s1_str], [new_text_str])).squeeze()
         pred_label = torch.argmax(probs)
@@ -129,7 +126,7 @@ def main():
         change_list.append(modify_ratio)
         num_change_list.append(num_changed)  #
         success_time.append(adv_time)  #
-    print(predict_true, success_count, float(predict_true)/float(len(data)), float(success_count)/float(predict_true), 1.0-(success_count+wrong_clas)/float(len(data)))
+    print(float(success_count)/float(predict_true), 1.0-(success_count+wrong_clas)/float(len(data)))
 
 
     w_dir = args.output_dir + '/sempso'

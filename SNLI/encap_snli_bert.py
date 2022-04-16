@@ -89,7 +89,7 @@ class Model(nn.Module):
         s1 = text[0]
         s2 = text[1]
         with torch.no_grad():
-            s1 = [s.tolist() if not isinstance(s, list) else s for s in s1]  # tiz
+            s1 = [s.tolist() if not isinstance(s, list) else s for s in s1]
             s2 = [s.tolist() if not isinstance(s, list) else s for s in s2]
 
             logits_all = []
@@ -108,7 +108,7 @@ class Model(nn.Module):
         s1 = text[0]
         s2 = text[1]
         with torch.no_grad():
-            s1 = [s.tolist() if not isinstance(s, list) else s for s in s1]  # tiz
+            s1 = [s.tolist() if not isinstance(s, list) else s for s in s1]
             s2 = [s.tolist() if not isinstance(s, list) else s for s in s2]
 
             logits_all = []
@@ -122,7 +122,7 @@ class Model(nn.Module):
                 logits_all.append(logits)
         return torch.cat(logits_all, dim=0)
 
-    def text_pred_Enhance(self, orig_s2, text, sample_num=256, batch_size=128):  # text是str
+    def text_pred_Enhance(self, orig_s2, text, sample_num=256, batch_size=128):
         self.model.eval()
         s1 = text[0]
         s2 = text[1]
@@ -130,14 +130,14 @@ class Model(nn.Module):
             perturbed_s2 = perturb_texts(self.args, orig_s2, s2, self.args.tf_vocabulary, change_ratio=0.2)
             Samples_s2 = gen_sample_multiTexts(self.args, orig_s2, perturbed_s2, sample_num, change_ratio=0.25)
 
-            s1s = [s for s in s1 for i in range(sample_num)]  # 每个lable复制sample_size 次
+            s1s = [s for s in s1 for i in range(sample_num)]
 
             Sample_probs = self.text_pred_org(orig_s2, (s1s, Samples_s2), batch_size)
             lable_mum = Sample_probs.shape[-1]
             Sample_probs = Sample_probs.view(len(s2), sample_num, lable_mum)
             probs_boost = []
             for l in range(lable_mum):
-                num = torch.sum(torch.eq(torch.argmax(Sample_probs, dim=2), l), dim=1)  # 获得预测值的比例作为对应标签的概率
+                num = torch.sum(torch.eq(torch.argmax(Sample_probs, dim=2), l), dim=1)
                 prob = num.float() / float(sample_num)
                 probs_boost.append(prob.view(len(s2), 1))
             probs_boost_all = torch.cat(probs_boost, dim=1)
@@ -150,13 +150,13 @@ class Model(nn.Module):
         s2 = text[1]
         with torch.no_grad():
             Samples_s2 = gen_sample_multiTexts(self.args, orig_s2, s2, sample_num, change_ratio=1)
-            s1s = [s for s in s1 for i in range(sample_num)]  # 每个lable复制sample_size 次
+            s1s = [s for s in s1 for i in range(sample_num)]
             Sample_probs = self.text_pred_org(orig_s2, (s1s, Samples_s2), batch_size)
             lable_mum = Sample_probs.size()[-1]
             Sample_probs = Sample_probs.view(len(s2), sample_num, lable_mum)
             probs_boost = []
             for l in range(lable_mum):
-                num = torch.sum(torch.eq(torch.argmax(Sample_probs, dim=2), l), dim=1)  # 获得预测值的比例作为对应标签的概率
+                num = torch.sum(torch.eq(torch.argmax(Sample_probs, dim=2), l), dim=1)
                 prob = num.float() / float(sample_num)
                 probs_boost.append(prob.view(len(s2), 1))
             probs_boost_all = torch.cat(probs_boost, dim=1)
@@ -187,7 +187,6 @@ class Model(nn.Module):
         # for item in inputs:
         #     length = max(length, len(item))
         # length = min(length, self.config.max_sent_lens)
-        # 原本是按最大长度和当前batch中最大长度的较小值，来填充。我改成统一按最大长度
         length = self.config.max_sent_lens
 
         num = len(inputs)
