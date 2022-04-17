@@ -27,7 +27,6 @@ Parameters:
 - --target_model_path: the path of target model to be attacked
 - --data_path: the path of data
 - --output_dir: the path for output adv examples
-- --sym: use the symmetric candidate
 - **--kind: choose defense method**
     - org: attack original model
     - Enhance: attack model enhanced by FPP
@@ -38,21 +37,21 @@ Parameters:
 ## For TextFooler attack
 
 ```
-python attack_classification_hownet_top5.py --task mr --target_model wordLSTM --target_model_path /pub/data/huangpei/FPP-AAAI22-release-models/wordLSTM/mr --data_path /pub/data/huangpei/FPP-AAAI22-release-dataset/ --output_dir /pub/data/huangpei/FPP-AAAI22-release-output --gpu_id 0 --sym --kind org
+python attack_classification_hownet_top5.py --task mr --target_model wordLSTM --target_model_path /pub/data/huangpei/FPP-AAAI22-release-models/wordLSTM/mr --data_path /pub/data/huangpei/FPP-AAAI22-release-dataset/ --output_dir /pub/data/huangpei/FPP-AAAI22-release-output --gpu_id 0 --kind org
 
 ```
 
 If you want to attack model after adversarial training, set “--kind adv” and “target_model_path” to the model after adversarial training. We also offer the adv model with “_adv” suffix.
 
 ```
-python attack_classification_hownet_top5.py --task imdb --target_model bert --target_model_path /pub/data/huangpei/FPP-AAAI22-release-models/bert/imdb_adv --data_path /pub/data/huangpei/FPP-AAAI22-release-dataset/ --output_dir /pub/data/huangpei/FPP-AAAI22-release-output --gpu_id 0 --sym --kind adv
+python attack_classification_hownet_top5.py --task imdb --target_model bert --target_model_path /pub/data/huangpei/FPP-AAAI22-release-models/bert/imdb_adv --data_path /pub/data/huangpei/FPP-AAAI22-release-dataset/ --output_dir /pub/data/huangpei/FPP-AAAI22-release-output --gpu_id 0 --kind adv
 
 ```
 
 ## For SemPSO attack
 
 ```
-python AD_dpso_sem.py --task mr --target_model bert --target_model_path /pub/data/huangpei/FPP-AAAI22-release-models/bert/mr --data_path /pub/data/huangpei/FPP-AAAI22-release-dataset/ --output_dir /pub/data/huangpei/FPP-AAAI22-release-output --gpu_id 1 --sym --kind org
+python AD_dpso_sem.py --task mr --target_model bert --target_model_path /pub/data/huangpei/FPP-AAAI22-release-models/bert/mr --data_path /pub/data/huangpei/FPP-AAAI22-release-dataset/ --output_dir /pub/data/huangpei/FPP-AAAI22-release-output --gpu_id 1 --kind org
 
 ```
 
@@ -64,7 +63,6 @@ Parameters:
 - --target_model_path: the path of target model to be attacked
 - --data_path: the path of data
 - --output_dir: the path for output adv examples
-- --sym: use the symmetric candidate
 - **--kind: choose defense method.**
     - org: attack original model
     - Enhance: attack model enhanced by FPP
