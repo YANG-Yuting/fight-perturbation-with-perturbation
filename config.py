@@ -41,7 +41,7 @@ parser.add_argument('--local_rank', default=-1, type=int, help='node rank for di
 parser.add_argument("--sample_num", type=int, default=1000)
 parser.add_argument("--change_ratio", type=float, default=1.0, help='the percentage of changed words in a text while sampling')
 
-parser.add_argument("--sym", action='store_true', help="if use the symmetric candidate")
+parser.add_argument("--sym", type=bool, default=True, help="if use the symmetric candidate")
 parser.add_argument("--train_set", action='store_true',help='if attack train set')
 parser.add_argument("--attack_robot", action='store_true',help='if attack robot classifier')
 parser.add_argument("--kind", type=str, default='org', help='the model to be attacked')
